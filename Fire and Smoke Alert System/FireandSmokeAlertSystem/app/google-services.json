@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "913080542410",
+    "firebase_url": "https://smoke-and-fire-alert-system-default-rtdb.firebaseio.com",
+    "project_id": "smoke-and-fire-alert-system",
+    "storage_bucket": "smoke-and-fire-alert-system.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:913080542410:android:006e6d3ec825d8a032c033",
+        "android_client_info": {
+          "package_name": "com.example.fireandsmokealertsystem"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "913080542410-cpf5so138bs9ok1t0h11iftp5dcaisqg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBS_YAtaddZ6jvhtWU3tyW3vDXAeFQuvcE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "913080542410-cpf5so138bs9ok1t0h11iftp5dcaisqg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

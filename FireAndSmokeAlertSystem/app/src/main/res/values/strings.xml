@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Fire And Smoke Alert System</string>
+    <string name="select">Select area</string>
+    <string name="popup_message">Are you sure you want to change the area?</string>
+</resources>
