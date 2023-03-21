@@ -5,11 +5,10 @@ SoftwareSerial espSerial(3, 4);
 
 //gsm
 String receivedString;
-String number = "+639912981231";
+String headNumber = "+639696262252";
+String deviceID = "202300101";
 
-String area = "Kitchen";
-
-int fireAlert = 0, smokeAlert = 0;
+int alert = 0;
 
 const int relay = 6;  
 
@@ -24,8 +23,10 @@ const int ledPinConnectionSignal =  2;
 const int ledPinErroConnectionSignal = 11;
 const int ledPinSerialSignal = 13;
 
-int loopCounter = 0;
+bool loopStop = false;
 bool serialWasRead = false;
+
+int loopCount = 0;
 
 void setup() {
     gsmSerial.begin(9600);
@@ -40,7 +41,8 @@ void setup() {
     pinMode(ledPinErroConnectionSignal, OUTPUT);
     pinMode(ledPinSerialSignal, OUTPUT);
 
-    digitalWrite(relay, HIGH); // turning the relay on
+    digitalWrite(relay, LOW); // turning the relay on
+    
     digitalWrite(ledPinFlameSignal, LOW);
     digitalWrite(ledPinSmokeSignal, LOW);
     digitalWrite(ledPinConnectionSignal, LOW);
@@ -49,174 +51,255 @@ void setup() {
 }
 
 void loop() {
-    
-    if(loopCounter == 0 || serialWasRead == true){
+
       sensorValue = analogRead(0); 
       int flame = digitalRead(flamePin);
-    
+
           //FIRE and Smoke alarm check
           if (flame == 0 || sensorValue > 200){
-            digitalWrite(relay, HIGH);
+              delay(5000);
+              loopCount = loopCount + 5;
 
-              if(flame == 0){
-                digitalWrite(ledPinFlameSignal, HIGH);
-                fireAlert = 1;
+              sensorValue = analogRead(0); 
+              int flame = digitalRead(flamePin);
+
+              if(flame == 0 && sensorValue > 200){
+                  digitalWrite(relay, HIGH);
+                  digitalWrite(ledPinFlameSignal, HIGH);
+                  digitalWrite(ledPinSmokeSignal, HIGH); 
+                  alert = 1;
+                  
+                  gsmSerial.println("AT+CMGF=1"); 
+                  delay(1000);
+                  gsmSerial.println("AT+CMGS=\"" + headNumber + "\""); 
+                  delay(1000);
+                  gsmSerial.println("Emergency Alert Fire and Smoke Detected on Device ID " + deviceID); 
+                  gsmSerial.println((char)26); // send control-Z
+                  delay(1000);
+                  
+              }
+
+              else if(flame == 0 && sensorValue <= 200 ){
+                  digitalWrite(relay, HIGH);
+                  digitalWrite(ledPinFlameSignal, HIGH);
+                  digitalWrite(ledPinSmokeSignal, LOW); 
+                  alert = 1;
+ 
+                  gsmSerial.println("AT+CMGF=1"); 
+                  delay(1000);
+                  gsmSerial.println("AT+CMGS=\"" + headNumber + "\""); 
+                  delay(1000);
+                  gsmSerial.println("Emergency Alert Fire Detected on Device ID " + deviceID); 
+                  gsmSerial.println((char)26); // send control-Z
+                  delay(1000);
+              }
+
+              else if(flame == 1 && sensorValue > 200){
+                  digitalWrite(relay, HIGH);
+                  digitalWrite(ledPinFlameSignal, LOW);  
+                  digitalWrite(ledPinSmokeSignal, HIGH); 
+                  alert = 1;
+                  
+                  gsmSerial.println("AT+CMGF=1"); 
+                  delay(1000);
+                  gsmSerial.println("AT+CMGS=\"" + headNumber + "\""); 
+                  delay(1000);
+                  gsmSerial.println("Emergency Alert Smoke Detected on Device ID " + deviceID); 
+                  gsmSerial.println((char)26); // send control-Z
+                  delay(1000);
               }
           
-              if(sensorValue > 200){
-                digitalWrite(ledPinSmokeSignal, HIGH);
-                smokeAlert = 1;
-              }
-          }
-          
-          else{
-            digitalWrite(relay, LOW);
-            digitalWrite(ledPinFlameSignal, LOW);
-            digitalWrite(ledPinSmokeSignal, LOW);
-            
-            fireAlert = 0;
-            smokeAlert = 0;
-          }
-          //******
-      
-          String sensorStringValues = String(String(flame) + "," + String(sensorValue)) + "," + area;
-          espSerial.println(sensorStringValues);
-
-          delay(5000);
-          
-          loopCounter++;
-    }
+              else{
+                digitalWrite(relay, LOW);
+                digitalWrite(ledPinFlameSignal, LOW);
+                digitalWrite(ledPinSmokeSignal, LOW);
     
+                alert = 0;
+              }
+          }
+
+          else{
+                digitalWrite(relay, LOW);
+                digitalWrite(ledPinFlameSignal, LOW);
+                digitalWrite(ledPinSmokeSignal, LOW);
+    
+                alert = 0;
+          }
+       //********************
+
+      if(loopCount >= 10){
+          digitalWrite(ledPinSerialSignal, HIGH);
+          String sensorStringValues = String(String(flame) + "," + String(sensorValue) + "," + String(alert) + "%");
+          espSerial.print(sensorStringValues);
+          loopCount = 0;
+          delay(2000);
+          digitalWrite(ledPinSerialSignal, LOW);
+      }  
+
 
     if (Serial.available() > 0) {
-      digitalWrite(ledPinSerialSignal, HIGH); 
-      
-      serialWasRead = true;
-      
-//      char incomingByte = Serial.read();
-//      receivedString += incomingByte;
-      receivedString = Serial.readStringUntil('\n');
-      
-      int index = receivedString.indexOf(',');
-      String connection = receivedString.substring(0, index);
-      
-      String removeConnectionResponse = removeWord(receivedString, connection);
-      String removeFirstCharacter = removeConnectionResponse.substring(1);
-      int alertIndex = removeFirstCharacter.indexOf(',');
-      String alertString = removeFirstCharacter.substring(0, alertIndex);
-      int alertInt = alertString.toInt();
+      receivedString = Serial.readStringUntil('%');
+      Serial.println("Reieved Value : " + receivedString);
+      Serial.println("String Lenght : " + String(receivedString.length()));
+      int stringLength = receivedString.length();
 
-      String removeAlertIntResponse = removeWord(removeFirstCharacter, alertString);
-      String number = removeAlertIntResponse.substring(1);
+      char incomingByte = Serial.read();
+      receivedString += incomingByte;
 
-      int numberCount = 1;
-      
-      //count how many numbers there is
-      for(;;){
-            if(number == ""){
-              break;
-            }
-  
-            else{
-              numberCount++;
-              int numberIndex = number.indexOf(',');
-              String numberString = number.substring(0, numberIndex);
-              String removeNumberFromString = removeWord(number, numberString);
-              number = removeNumberFromString.substring(1);
-            }
-      }      
+      if(receivedString == "0"){
+          Serial.println("Recieved No Alert");
+      }
 
-
-        //check if there is internet connection or 
-        if(connection == "Ok"){
-          digitalWrite(ledPinConnectionSignal, HIGH); 
+      else if(receivedString != "0" && stringLength > 0 && receivedString != "" && receivedString != " "){
+          int areaIndex = receivedString.indexOf(',');
+          String area = receivedString.substring(0, areaIndex);
           
-           sensorValue = analogRead(0); 
-           int flame = digitalRead(flamePin);
-    
-          //checking if fire or smoke gets triggered
-            if(fireAlert == 1 && smokeAlert == 1){
-              gsmSerial.println("AT+CMGF=1"); 
-              delay(1000);
-              gsmSerial.println("AT+CMGS=\"" + number + "\""); 
-              delay(1000);
-              gsmSerial.println("Emergency Alert Fire and Smoke Detected on " + area); 
-              gsmSerial.println((char)26); // send control-Z
-              delay(1000);
-            }
-        
-            //checking if smoke gets triggered
-            else if(fireAlert == 0 && smokeAlert == 1){
-              gsmSerial.println("AT+CMGF=1"); 
-              delay(1000);
-              gsmSerial.println("AT+CMGS=\"" + number + "\""); 
-              delay(1000);
-              gsmSerial.println("Emergency Alert Smoke Detected on " + area); 
-              gsmSerial.println((char)26); // send control-Z
-              delay(1000);
-            }
-        
-            //checking if fire gets triggered
-            else if(fireAlert == 1 && smokeAlert == 0){
-              gsmSerial.println("AT+CMGF=1"); 
-              delay(1000);
-              gsmSerial.println("AT+CMGS=\"" + number + "\""); 
-              delay(1000);
-              gsmSerial.println("Emergency Alert Fire Detected on " + area); 
-              gsmSerial.println((char)26); // send control-Z
-              delay(1000);
-            }
+          String areaRemove = removeWord(receivedString, area);
+          String removeFirstCharacter = areaRemove.substring(1);
+          int alertIndex = removeFirstCharacter.indexOf(',');
+          String alert = removeFirstCharacter.substring(0, alertIndex); 
 
-            delay(2000);
-             digitalWrite(ledPinConnectionSignal, LOW); 
-        }
-
-        else{
-          digitalWrite(ledPinErroConnectionSignal, HIGH);
+          String alertRemove = removeWord(removeFirstCharacter, alert);
+          String removeFirstCharacter1 = alertRemove.substring(1);
+                
+          Serial.println("Area:" + area);
+          Serial.println("Alert:" + alert);
+          
           sensorValue = analogRead(0); 
           int flame = digitalRead(flamePin);
+
           
-          
-          //checking if fire or smoke gets triggered
-            if(fireAlert == 1 && smokeAlert == 1){
-              gsmSerial.println("AT+CMGF=1"); 
-              delay(1000);
-              gsmSerial.println("AT+CMGS=\"" + number + "\""); 
-              delay(1000);
-              gsmSerial.println("Emergency Alert Fire and Smoke Detected on " + area); 
-              gsmSerial.println((char)26); // send control-Z
-              delay(1000);
-            }
-        
-            //checking if smoke gets triggered
-            if(fireAlert == 0 && smokeAlert == 1){
-              gsmSerial.println("AT+CMGF=1"); 
-              delay(1000);
-              gsmSerial.println("AT+CMGS=\"" + number + "\""); 
-              delay(1000);
-              gsmSerial.println("Emergency Alert Smoke Detected on " + area); 
-              gsmSerial.println((char)26); // send control-Z
-              delay(1000);
-            }
-        
-            //checking if fire gets triggered
-            if(fireAlert == 1 && smokeAlert == 0){
-              gsmSerial.println("AT+CMGF=1"); 
-              delay(1000);
-              gsmSerial.println("AT+CMGS=\"" + number + "\""); 
-              delay(1000);
-              gsmSerial.println("Emergency Alert Fire Detected on " + area); 
-              gsmSerial.println((char)26); // send control-Z
-              delay(1000);
+          //ibig sabihin magamit ko internet pag send sang number
+          if(alert == "4"){
+            Serial.println("Sending To all and alert is on");
+            digitalWrite(relay, HIGH);
+            
+                for(;;){
+                if(removeFirstCharacter1 == " " || removeFirstCharacter1  == ""){
+                  break;
+                }
+                int numberIndex = removeFirstCharacter1.indexOf(',');
+                String number = removeFirstCharacter1.substring(0, numberIndex); 
+                     
+                String numberRemove = removeWord(removeFirstCharacter1, number);
+                String removeFirstCharacter2 = numberRemove.substring(1);
+                removeFirstCharacter1 = removeFirstCharacter2;
+    
+                Serial.println("Number:" + number);
+    
+                if(sensorValue > 200 && flame == 0){
+                        gsmSerial.println("AT+CMGF=1"); 
+                        delay(1000);
+                        gsmSerial.println("AT+CMGS=\"" + number + "\""); 
+                        delay(1000);
+                        gsmSerial.println("Emergency Alert Fire and Smoke Detected on " + area); 
+                        gsmSerial.println((char)26); // send control-Z
+                        delay(1000);
+                    }
+    
+                    else if(sensorValue > 200 && flame == 1){
+                        gsmSerial.println("AT+CMGF=1"); 
+                        delay(1000);
+                        gsmSerial.println("AT+CMGS=\"" + number + "\""); 
+                        delay(1000);
+                        gsmSerial.println("Emergency Alert Smoke Detected on " + area); 
+                        gsmSerial.println((char)26); // send control-Z
+                        delay(1000);
+                    }
+    
+                    else if(sensorValue <= 200 && flame == 0){
+                        gsmSerial.println("AT+CMGF=1"); 
+                        delay(1000);
+                        gsmSerial.println("AT+CMGS=\"" + number + "\""); 
+                        delay(1000);
+                        gsmSerial.println("Emergency Alert Fire Detected on " + area); 
+                        gsmSerial.println((char)26); // send control-Z
+                        delay(1000);
+                    }
+                    
+                delay(3000);
+                
+                }
+          }
+
+
+          //ibig sabihin di ko magamit net mag send sa nubmers pero i on ang total relay
+            else if(alert == "41"){
+                 digitalWrite(relay, HIGH);
+                Serial.println("Sending To head and alert is on");
             }
 
-            delay(2000);
-             digitalWrite(ledPinErroConnectionSignal, LOW); 
-        }  
-         
-        delay(2000);
-        digitalWrite(ledPinSerialSignal, LOW ); 
+
+            //ibig sabihin magamit net mag send sa nubmers pero i on ang relay unless kung may alert sa mga device i off lang
+            else if(alert == "5"){
+                Serial.println("Sending To all numbers but it is not on alert");
+                for(;;){
+                  if(removeFirstCharacter1 == " " || removeFirstCharacter1 == ""){
+                    break;
+                  }
+                  
+
+                  int numberIndex = removeFirstCharacter1.indexOf(',');
+                  String number = removeFirstCharacter1.substring(0, numberIndex); 
+                       
+                  String numberRemove = removeWord(removeFirstCharacter1, number);
+                  String removeFirstCharacter2 = numberRemove.substring(1);
+                  removeFirstCharacter1 = removeFirstCharacter2;
+      
+                  Serial.println("Number:" + number);
+      
+                  if(sensorValue > 200 && flame == 0){
+                          gsmSerial.println("AT+CMGF=1"); 
+                          delay(1000);
+                          gsmSerial.println("AT+CMGS=\"" + number + "\""); 
+                          delay(1000);
+                          gsmSerial.println("Emergency Alert Fire and Smoke Detected on " + area); 
+                          gsmSerial.println((char)26); // send control-Z
+                          delay(1000);
+                          digitalWrite(relay, HIGH);
+                      }
+      
+                      else if(sensorValue > 200 && flame == 1){
+                          gsmSerial.println("AT+CMGF=1"); 
+                          delay(1000);
+                          gsmSerial.println("AT+CMGS=\"" + number + "\""); 
+                          delay(1000);
+                          gsmSerial.println("Emergency Alert Smoke Detected on " + area); 
+                          gsmSerial.println((char)26); // send control-Z
+                          delay(1000);
+                          digitalWrite(relay, HIGH);
+                      }
+      
+                      else if(sensorValue <= 200 && flame == 0){
+                          gsmSerial.println("AT+CMGF=1"); 
+                          delay(1000);
+                          gsmSerial.println("AT+CMGS=\"" + number + "\""); 
+                          delay(1000);
+                          gsmSerial.println("Emergency Alert Fire Detected on " + area); 
+                          gsmSerial.println((char)26); // send control-Z
+                          delay(1000);
+                          digitalWrite(relay, HIGH);
+                      }
+
+                      delay(3000);
+                }
+            }
+
+
+            //ibig sabihin di ko magamit net mag send sa nubmers pero i on ang relay unless kung may alert sa mga device i off lang
+            else if(alert == "51"){
+                Serial.println("Sending To head but it is not on alert");
+            }
+      }
+
+      else{
+          Serial.println("Recieved Nothing");
+      }
     }
+
+    loopCount++;
+
+    delay(1000);
 }
 
 String removeWord(String str, String word) {
